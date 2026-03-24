@@ -18,12 +18,12 @@ import config
 logger = logging.getLogger(__name__)
 
 # ── Color Palette ──
-BG = "#0a0e17"
-SURFACE = "#111827"
-CARD = "#1a2035"
-BORDER = "#2d3654"
-TEXT = "#e5e7eb"
-MUTED = "#6b7280"
+BG = "#000000"
+SURFACE = "#0a0a0a"
+CARD = "#121212"
+BORDER = "#1e1e1e"
+TEXT = "#f0f0f0"
+MUTED = "#888888"
 CYAN = "#06b6d4"
 GREEN = "#10b981"
 RED = "#ef4444"
@@ -139,7 +139,12 @@ def _build_equity_chart(survivors, indices, phase_key, title):
             bordercolor="rgba(0,0,0,0)",
         ),
         margin=dict(l=60, r=20, t=45, b=50),
-        hovermode="x unified",
+        hovermode="x",
+        hoverlabel=dict(
+            bgcolor="#1a1a1a",
+            bordercolor="#333333",
+            font=dict(color="#f0f0f0", family=FONT, size=12),
+        ),
     )
 
     # Clean axes - no grid lines
@@ -220,7 +225,7 @@ def _conditional_styles(n_rows):
     # Alternating row colors
     styles.append({
         "if": {"row_index": "odd"},
-        "backgroundColor": "#0d1117",
+        "backgroundColor": "#0e0e0e",
     })
     styles.append({
         "if": {"row_index": "even"},
@@ -421,25 +426,51 @@ def launch_dashboard(results: list[dict], pipeline_stats: dict):
             accent-color: ''' + CYAN + ''';
         }
 
-        /* DataTable cell focus/select/active - override white defaults */
-        .dash-spreadsheet-container .dash-spreadsheet-inner td.focused,
-        .dash-spreadsheet-container .dash-spreadsheet-inner td.cell--selected,
-        .dash-spreadsheet-container .dash-spreadsheet-inner td.cell--active,
-        .dash-cell-value,
+        /* DataTable - KILL all white backgrounds on click/select/focus */
         td.dash-cell.focused,
+        td.dash-cell.cell--selected,
+        td.dash-cell.cell--active,
+        td.cell--selected,
         td.focused,
-        td.cell--selected {
-            background-color: ''' + _rgba(CYAN, 0.1) + ''' !important;
+        .dash-cell.focused,
+        .dash-cell.cell--selected,
+        .dash-spreadsheet-container td.focused,
+        .dash-spreadsheet-container td.cell--selected,
+        .dash-spreadsheet-inner td.focused,
+        .dash-spreadsheet-inner td.cell--selected,
+        .dash-spreadsheet-inner td.cell--active,
+        [class*="cell--selected"],
+        [class*="focused"]:not(.Select) {
+            background-color: ''' + _rgba(CYAN, 0.12) + ''' !important;
+            background: ''' + _rgba(CYAN, 0.12) + ''' !important;
             color: ''' + TEXT + ''' !important;
-            border: 1px solid ''' + _rgba(CYAN, 0.4) + ''' !important;
+            outline: 1px solid ''' + CYAN + ''' !important;
+            box-shadow: inset 0 0 0 1px ''' + CYAN + ''' !important;
         }
-        .dash-spreadsheet-container .dash-spreadsheet-inner input:not([type="checkbox"]) {
+        /* Input that appears when cell is clicked */
+        .dash-spreadsheet-container input,
+        .dash-spreadsheet-inner input,
+        .dash-cell-value input,
+        td.dash-cell input,
+        td input:not([type="checkbox"]) {
             background-color: ''' + SURFACE + ''' !important;
+            background: ''' + SURFACE + ''' !important;
             color: ''' + TEXT + ''' !important;
+            border: 1px solid ''' + CYAN + ''' !important;
+            outline: none !important;
         }
+        /* Copy/paste menu */
         .dash-spreadsheet-menu {
             background: ''' + CARD + ''' !important;
             border-color: ''' + BORDER + ''' !important;
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-spreadsheet-menu div {
+            background: ''' + CARD + ''' !important;
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-spreadsheet-menu div:hover {
+            background: ''' + _rgba(CYAN, 0.1) + ''' !important;
         }
 
         /* DataTable pagination dark theme */

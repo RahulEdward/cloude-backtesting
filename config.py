@@ -7,10 +7,10 @@ All tunable parameters live here.
 # "crypto"  → Binance API (e.g. BTCUSDT, ETHUSDT)
 # "stock"   → Yahoo Finance (e.g. RELIANCE.NS, TCS.NS, AAPL, MSFT)
 # "forex"   → Yahoo Finance (e.g. EURUSD=X, GBPUSD=X, USDINR=X)
-MARKET = "crypto"
+MARKET = "stock"
 
 # ── Data Settings ──
-SYMBOL = "BTCUSDT"
+SYMBOL = "RELIANCE.NS"
 TIMEFRAME = "1h"           # Binance: 1m,5m,15m,1h,4h,1d | Yahoo: 1m,5m,15m,1h,1d,1wk
 LOOKBACK_DAYS = 365        # How far back to fetch
 
@@ -22,7 +22,7 @@ TRAIN_RATIO = 0.6          # 60% in-sample, 40% out-of-sample
 
 # ── Backtest Settings ──
 INITIAL_CAPITAL = 10000.0
-FEES = 0.001               # 0.1% crypto | 0.0003 Indian stocks | 0.00002 forex
+FEES = 0.0003              # 0.1% crypto | 0.0003 Indian stocks | 0.00002 forex
 SLIPPAGE = 0.0             # No slippage modeled by default
 
 # ── Pass/Fail Threshold ──
