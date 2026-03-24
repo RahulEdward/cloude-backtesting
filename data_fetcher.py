@@ -1,7 +1,7 @@
 """
-Fetches OHLCV data from Binance public API and splits into train/test.
+Fetches OHLCV data from multiple sources and splits into train/test.
+Supports: Crypto (Binance), Indian Stocks (Yahoo), Forex (Yahoo).
 Caches to CSV so repeat runs load instantly.
-No API key required - uses public kline endpoint.
 """
 
 import logging
@@ -17,11 +17,15 @@ import config
 logger = logging.getLogger(__name__)
 
 
+# ─────────────────────── Cache Layer ───────────────────────
+
+
 def _cache_path(symbol: str, interval: str, lookback_days: int) -> str:
     """Build a unique CSV cache filename."""
+    safe_symbol = symbol.replace("=", "").replace("/", "").replace("^", "")
     return os.path.join(
         config.CSV_CACHE_DIR,
-        f"{symbol}_{interval}_{lookback_days}d.csv",
+        f"{safe_symbol}_{interval}_{lookback_days}d.csv",
     )
 
 
@@ -46,6 +50,9 @@ def _save_cache(df: pd.DataFrame, path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     df.to_csv(path)
     logger.info(f"Saved {len(df)} candles to cache: {path}")
+
+
+# ─────────────────────── Binance (Crypto) ───────────────────────
 
 
 def fetch_binance_klines(symbol: str, interval: str, lookback_days: int) -> pd.DataFrame:
@@ -118,8 +125,116 @@ def fetch_binance_klines(symbol: str, interval: str, lookback_days: int) -> pd.D
     logger.debug(f"Data shape: {df.shape}, dtypes:\n{df.dtypes}")
 
     _save_cache(df, cache_file)
-
     return df
+
+
+# ─────────────────────── Yahoo Finance (Stocks + Forex) ───────────────────────
+
+
+def fetch_yahoo_data(symbol: str, interval: str, lookback_days: int) -> pd.DataFrame:
+    """
+    Fetch historical data from Yahoo Finance via yfinance.
+    Works for: Indian stocks (RELIANCE.NS), US stocks (AAPL), Forex (EURUSD=X), indices (^NSEI).
+    """
+    cache_file = _cache_path(symbol, interval, lookback_days)
+    cached = _load_cache(cache_file)
+    if cached is not None:
+        return cached
+
+    try:
+        import yfinance as yf
+    except ImportError:
+        raise ImportError(
+            "yfinance is required for stock/forex data. Install it:\n"
+            "  pip install yfinance"
+        )
+
+    logger.info(f"Fetching {symbol} {interval} data for last {lookback_days} days from Yahoo Finance")
+
+    # Yahoo Finance interval mapping
+    yf_interval_map = {
+        "1m": "1m", "5m": "5m", "15m": "15m",
+        "1h": "1h", "4h": "1h",  # Yahoo doesn't support 4h, use 1h
+        "1d": "1d", "1wk": "1wk", "1mo": "1mo",
+    }
+    yf_interval = yf_interval_map.get(interval, "1h")
+
+    # Yahoo limits: 1m=7d, 5m/15m=60d, 1h=730d, 1d=unlimited
+    if yf_interval in ["1m"] and lookback_days > 7:
+        logger.warning(f"Yahoo limits 1m data to 7 days, clamping from {lookback_days}")
+        lookback_days = 7
+    elif yf_interval in ["5m", "15m"] and lookback_days > 60:
+        logger.warning(f"Yahoo limits {yf_interval} data to 60 days, clamping from {lookback_days}")
+        lookback_days = 60
+    elif yf_interval == "1h" and lookback_days > 730:
+        logger.warning(f"Yahoo limits 1h data to 730 days, clamping from {lookback_days}")
+        lookback_days = 730
+
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period=f"{lookback_days}d", interval=yf_interval)
+
+    if df.empty:
+        raise ValueError(f"No data returned from Yahoo Finance for {symbol} {yf_interval}")
+
+    # Normalize column names to lowercase
+    df.columns = [c.lower() for c in df.columns]
+
+    # Keep only OHLCV columns
+    required = ["open", "high", "low", "close", "volume"]
+    for col in required:
+        if col not in df.columns:
+            raise ValueError(f"Column '{col}' missing from Yahoo data for {symbol}")
+
+    df = df[required]
+    df.index.name = "open_time"
+    df = df[~df.index.duplicated(keep="first")]
+    df = df.sort_index()
+
+    # Remove timezone info if present (vectorbt works better without it)
+    if df.index.tz is not None:
+        df.index = df.index.tz_localize(None)
+
+    for col in required:
+        df[col] = df[col].astype(float)
+
+    # If user wanted 4h but Yahoo gave 1h, resample to 4h
+    if interval == "4h" and yf_interval == "1h":
+        logger.info("Resampling 1h data to 4h")
+        df = df.resample("4h").agg({
+            "open": "first", "high": "max", "low": "min",
+            "close": "last", "volume": "sum",
+        }).dropna()
+
+    logger.info(f"Fetched {len(df)} candles from {df.index[0]} to {df.index[-1]}")
+    logger.debug(f"Data shape: {df.shape}, dtypes:\n{df.dtypes}")
+
+    _save_cache(df, cache_file)
+    return df
+
+
+# ─────────────────────── Unified Interface ───────────────────────
+
+
+def fetch_data(symbol: str = None, interval: str = None, lookback_days: int = None,
+               market: str = None) -> pd.DataFrame:
+    """
+    Fetch OHLCV data from the appropriate source based on MARKET config.
+    Auto-detects: crypto → Binance, stock/forex → Yahoo Finance.
+    """
+    symbol = symbol or config.SYMBOL
+    interval = interval or config.TIMEFRAME
+    lookback_days = lookback_days or config.LOOKBACK_DAYS
+    market = (market or config.MARKET).lower()
+
+    if market == "crypto":
+        return fetch_binance_klines(symbol, interval, lookback_days)
+    elif market in ("stock", "forex"):
+        return fetch_yahoo_data(symbol, interval, lookback_days)
+    else:
+        raise ValueError(
+            f"Unknown MARKET '{market}'. Use 'crypto', 'stock', or 'forex'. "
+            f"Set it in config.py"
+        )
 
 
 def split_train_test(df: pd.DataFrame, train_ratio: float = None):
@@ -143,6 +258,6 @@ def split_train_test(df: pd.DataFrame, train_ratio: float = None):
 
 def get_data():
     """Convenience: fetch + split in one call."""
-    df = fetch_binance_klines(config.SYMBOL, config.TIMEFRAME, config.LOOKBACK_DAYS)
+    df = fetch_data()
     train_df, test_df = split_train_test(df)
     return train_df, test_df
