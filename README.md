@@ -7,7 +7,8 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
 [![vectorbt](https://img.shields.io/badge/Engine-vectorbt-00C853)](https://vectorbt.dev)
 [![Dash](https://img.shields.io/badge/Dashboard-Plotly%20Dash-119DFF?logo=plotly)](https://dash.plotly.com)
-[![Binance](https://img.shields.io/badge/Data-Binance%20API-F0B90B?logo=binance)](https://binance.com)
+[![Binance](https://img.shields.io/badge/Crypto-Binance%20API-F0B90B?logo=binance)](https://binance.com)
+[![Yahoo Finance](https://img.shields.io/badge/Stocks%20%26%20Forex-Yahoo%20Finance-720e9e)](https://finance.yahoo.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <br>
@@ -71,62 +72,65 @@ The dashboard auto-opens at **http://127.0.0.1:8050**
 ## How It Works
 
 ```
-                          ┌─────────────────────┐
-                          │   Binance REST API   │
-                          │  (public, no key)    │
-                          └──────────┬──────────┘
-                                     │
-                                     ▼
-                          ┌─────────────────────┐
-                          │   CSV Cache Layer    │
-                          │  (instant on re-run) │
-                          └──────────┬──────────┘
-                                     │
-                          ┌──────────┴──────────┐
-                          │                     │
-                          ▼                     ▼
-                   ┌─────────────┐       ┌─────────────┐
-                   │  In-Sample  │       │Out-of-Sample│
-                   │    (60%)    │       │    (40%)    │
-                   └──────┬──────┘       └──────┬──────┘
-                          │                     │
-                          ▼                     │
-              ┌───────────────────────┐         │
-              │  Parameter Sweep      │         │
-              │  ─────────────────    │         │
-              │  22 rule variants     │         │
-              │  × combo pairs        │         │
-              │  = 253 strategies     │         │
-              └───────────┬───────────┘         │
-                          │                     │
-                          ▼                     │
-              ┌───────────────────────┐         │
-              │  Parallel Backtest    │         │
-              │  (8 threads)          │         │
-              └───────────┬───────────┘         │
-                          │                     │
-                          ▼                     │
-              ┌───────────────────────┐         │
-              │  Max DD < 30%?        │         │
-              │  FAIL → eliminated    │         │
-              │  PASS → survivors     │         │
-              └───────────┬───────────┘         │
-                          │                     │
-                          └─────────┬───────────┘
-                                    │
-                                    ▼
-                        ┌───────────────────────┐
-                        │  Re-test on OOS data  │
-                        │  Same DD filter       │
-                        └───────────┬───────────┘
-                                    │
-                          ┌─────────┴─────────┐
-                          │                   │
-                          ▼                   ▼
-                    ┌──────────┐        ┌──────────┐
-                    │   PASS   │        │   FAIL   │
-                    │Dashboard │        │Eliminated│
-                    └──────────┘        └──────────┘
+              ┌──────────────────────────────────────────┐
+              │           Multi-Market Data Source        │
+              │                                          │
+              │  Crypto  → Binance REST API (no key)     │
+              │  Stocks  → Yahoo Finance (yfinance)      │
+              │  Forex   → Yahoo Finance (yfinance)      │
+              └──────────────────┬───────────────────────┘
+                                 │
+                                 ▼
+              ┌──────────────────────────────────────────┐
+              │            CSV Cache Layer                │
+              │         (instant on re-run)               │
+              └──────────────────┬───────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+                    ▼                         ▼
+             ┌─────────────┐          ┌─────────────┐
+             │  In-Sample  │          │Out-of-Sample│
+             │    (60%)    │          │    (40%)    │
+             └──────┬──────┘          └──────┬──────┘
+                    │                        │
+                    ▼                        │
+        ┌───────────────────────┐            │
+        │   Parameter Sweep     │            │
+        │  ─────────────────    │            │
+        │  22 rule variants     │            │
+        │  × combo pairs        │            │
+        │  = 253 strategies     │            │
+        └───────────┬───────────┘            │
+                    │                        │
+                    ▼                        │
+        ┌───────────────────────┐            │
+        │   Parallel Backtest   │            │
+        │   (8 threads)         │            │
+        └───────────┬───────────┘            │
+                    │                        │
+                    ▼                        │
+        ┌───────────────────────┐            │
+        │   Max DD < 30%?       │            │
+        │   FAIL → eliminated   │            │
+        │   PASS → survivors    │            │
+        └───────────┬───────────┘            │
+                    │                        │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+              ┌──────────────────────────────┐
+              │   Re-test on OOS data        │
+              │   Same DD filter applied     │
+              └──────────────┬───────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+                    ▼                 ▼
+             ┌──────────┐      ┌──────────┐
+             │   PASS   │      │   FAIL   │
+             │Dashboard │      │Eliminated│
+             └──────────┘      └──────────┘
 ```
 
 ---
@@ -316,7 +320,8 @@ Comprehensive logging at two levels:
 |-----------|-----------|
 | Backtesting Engine | [vectorbt](https://vectorbt.dev) |
 | Technical Indicators | [ta](https://github.com/bukosabino/ta) |
-| Data Source | [Binance REST API](https://binance-docs.github.io/apidocs/) (public, no key) |
+| Crypto Data | [Binance REST API](https://binance-docs.github.io/apidocs/) (public, no key) |
+| Stocks & Forex Data | [Yahoo Finance](https://finance.yahoo.com) via [yfinance](https://github.com/ranaroussi/yfinance) |
 | Dashboard | [Plotly Dash](https://dash.plotly.com) |
 | Data Processing | pandas, numpy |
 | Parallelism | concurrent.futures.ThreadPoolExecutor |
