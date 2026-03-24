@@ -96,7 +96,7 @@ def _build_equity_chart(survivors, indices, phase_key, title):
             eq = pf.value()
             fig.add_trace(go.Scatter(
                 x=eq.index, y=eq.values, mode="lines", name=name,
-                line=dict(color=color, width=2.5),
+                line=dict(color=color, width=2, shape="spline", smoothing=0.8),
                 legendgroup=name, showlegend=True,
                 hovertemplate=f"<b>{name}</b><br>Value: $%{{y:,.0f}}<br>%{{x|%b %d, %Y}}<extra></extra>",
             ), row=1, col=1)
@@ -104,8 +104,8 @@ def _build_equity_chart(survivors, indices, phase_key, title):
             dd = pf.drawdown() * 100
             fig.add_trace(go.Scatter(
                 x=dd.index, y=dd.values, mode="lines", name=f"{name} DD",
-                line=dict(color=color, width=1.5),
-                fill="tozeroy", fillcolor=_rgba(color, 0.1),
+                line=dict(color=color, width=1.2, shape="spline", smoothing=0.8),
+                fill="tozeroy", fillcolor=_rgba(color, 0.08),
                 legendgroup=name, showlegend=False,
                 hovertemplate=f"<b>{name}</b><br>Drawdown: %{{y:.1f}}%<br>%{{x|%b %d, %Y}}<extra></extra>",
             ), row=2, col=1)
@@ -131,7 +131,7 @@ def _build_equity_chart(survivors, indices, phase_key, title):
         ),
         height=520,
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor=_rgba(BG, 0.5),
+        plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family=FONT, color=TEXT, size=11),
         legend=dict(
             orientation="h", yanchor="top", y=-0.08, xanchor="center", x=0.5,
@@ -142,17 +142,19 @@ def _build_equity_chart(survivors, indices, phase_key, title):
         hovermode="x unified",
     )
 
-    # Styled axes
+    # Clean axes - no grid lines
     for row in [1, 2]:
         fig.update_xaxes(
-            gridcolor=_rgba(BORDER, 0.5), zerolinecolor=BORDER,
-            showgrid=True, gridwidth=1, row=row, col=1,
+            showgrid=False, zeroline=False,
             tickfont=dict(size=10, color=MUTED),
+            linecolor=_rgba(BORDER, 0.3), linewidth=1,
+            row=row, col=1,
         )
         fig.update_yaxes(
-            gridcolor=_rgba(BORDER, 0.5), zerolinecolor=BORDER,
-            showgrid=True, gridwidth=1, row=row, col=1,
+            showgrid=False, zeroline=False,
             tickfont=dict(size=10, color=MUTED),
+            linecolor=_rgba(BORDER, 0.3), linewidth=1,
+            row=row, col=1,
         )
 
     # Subplot title styling
@@ -170,7 +172,7 @@ def _empty_fig(msg="Select strategies to view charts"):
         showarrow=False, font=dict(size=14, color=MUTED),
     )
     fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor=_rgba(BG, 0.5),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=TEXT), height=520,
         xaxis=dict(visible=False), yaxis=dict(visible=False),
     )
@@ -232,11 +234,19 @@ def _conditional_styles(n_rows):
                 "if": {"row_index": rank},
                 "borderLeft": f"{width} solid {color}",
             })
-    # Hover
+    # Active cell (clicked)
     styles.append({
         "if": {"state": "active"},
+        "backgroundColor": _rgba(CYAN, 0.12),
+        "border": f"1px solid {CYAN}",
+        "color": TEXT,
+    })
+    # Selected cell
+    styles.append({
+        "if": {"state": "selected"},
         "backgroundColor": _rgba(CYAN, 0.08),
-        "border": f"1px solid {_rgba(CYAN, 0.3)}",
+        "border": f"1px solid {_rgba(CYAN, 0.4)}",
+        "color": TEXT,
     })
     return styles
 
@@ -297,21 +307,140 @@ def launch_dashboard(results: list[dict], pipeline_stats: dict):
         ::-webkit-scrollbar-thumb { background: ''' + BORDER + '''; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: ''' + MUTED + '''; }
 
-        /* Dropdown dark theme */
-        .Select-control { background: ''' + SURFACE + ''' !important; border-color: ''' + BORDER + ''' !important; }
-        .Select-menu-outer { background: ''' + CARD + ''' !important; border-color: ''' + BORDER + ''' !important; }
-        .Select-value { background: ''' + _rgba(CYAN, 0.15) + ''' !important; border-color: ''' + _rgba(CYAN, 0.3) + ''' !important; color: ''' + CYAN + ''' !important; border-radius: 6px !important; }
-        .Select-value-label { color: ''' + CYAN + ''' !important; font-size: 11px !important; }
-        .Select-value-icon { border-color: ''' + _rgba(CYAN, 0.3) + ''' !important; }
-        .Select-value-icon:hover { background: ''' + _rgba(RED, 0.2) + ''' !important; color: ''' + RED + ''' !important; }
-        .Select-placeholder { color: ''' + MUTED + ''' !important; }
-        .Select-input input { color: ''' + TEXT + ''' !important; }
-        .Select-clear-zone { color: ''' + MUTED + ''' !important; }
-        .Select-arrow-zone { color: ''' + MUTED + ''' !important; }
-        .VirtualizedSelectOption { color: ''' + TEXT + ''' !important; background: ''' + CARD + ''' !important; font-size: 12px !important; padding: 10px 14px !important; }
-        .VirtualizedSelectFocusedOption { background: ''' + _rgba(CYAN, 0.1) + ''' !important; color: ''' + CYAN + ''' !important; }
-        .Select--multi .Select-value { margin: 3px 4px 3px 0 !important; }
-        .Select.is-focused > .Select-control { border-color: ''' + _rgba(CYAN, 0.5) + ''' !important; box-shadow: 0 0 0 2px ''' + _rgba(CYAN, 0.1) + ''' !important; }
+        /* ── Dash 4.0 dropdown dark theme ── */
+        /* Dropdown wrapper & trigger */
+        .dash-dropdown-wrapper,
+        .dash-dropdown {
+            background: ''' + SURFACE + ''' !important;
+            border-color: ''' + BORDER + ''' !important;
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-dropdown-trigger {
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-dropdown-value {
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-dropdown-value-item {
+            background: ''' + _rgba(CYAN, 0.12) + ''' !important;
+            border: 1px solid ''' + _rgba(CYAN, 0.25) + ''' !important;
+            border-radius: 5px !important;
+            color: ''' + CYAN + ''' !important;
+            padding: 2px 8px !important;
+            margin: 2px 4px 2px 0 !important;
+        }
+        .dash-dropdown-value-item span {
+            color: ''' + CYAN + ''' !important;
+            font-size: 11px !important;
+        }
+        .dash-dropdown-value-count {
+            color: ''' + MUTED + ''' !important;
+        }
+        .dash-dropdown-clear,
+        .dash-dropdown-clear svg {
+            color: ''' + MUTED + ''' !important;
+        }
+        .dash-dropdown-clear:hover,
+        .dash-dropdown-clear:hover svg {
+            color: ''' + RED + ''' !important;
+        }
+
+        /* Popup content / menu */
+        .dash-dropdown-content {
+            background: ''' + CARD + ''' !important;
+            border: 1px solid ''' + BORDER + ''' !important;
+            border-radius: 8px !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+        }
+
+        /* Search box */
+        .dash-dropdown-search-container {
+            background: ''' + SURFACE + ''' !important;
+            border-bottom: 1px solid ''' + BORDER + ''' !important;
+        }
+        .dash-dropdown-search,
+        .dash-dropdown-search input {
+            background: ''' + SURFACE + ''' !important;
+            color: ''' + TEXT + ''' !important;
+            border-color: ''' + BORDER + ''' !important;
+        }
+        .dash-dropdown-search::placeholder {
+            color: ''' + MUTED + ''' !important;
+        }
+
+        /* Select All / Deselect All buttons */
+        .dash-dropdown-actions {
+            background: ''' + _rgba(SURFACE, 0.8) + ''' !important;
+            border-bottom: 1px solid ''' + BORDER + ''' !important;
+            padding: 8px 12px !important;
+        }
+        .dash-dropdown-action-button {
+            color: ''' + CYAN + ''' !important;
+            background: transparent !important;
+            border: none !important;
+            cursor: pointer !important;
+            font-size: 12px !important;
+        }
+        .dash-dropdown-action-button:hover {
+            color: ''' + TEXT + ''' !important;
+            text-decoration: underline !important;
+        }
+
+        /* Options list */
+        .dash-options-list,
+        .dash-dropdown-options {
+            background: ''' + CARD + ''' !important;
+        }
+
+        /* Individual options */
+        .dash-options-list-option,
+        .dash-dropdown-option {
+            background: ''' + CARD + ''' !important;
+            color: ''' + TEXT + ''' !important;
+            border-bottom: 1px solid ''' + _rgba(BORDER, 0.3) + ''' !important;
+            padding: 10px 14px !important;
+            font-size: 12px !important;
+        }
+        .dash-options-list-option:hover,
+        .dash-dropdown-option:hover {
+            background: ''' + _rgba(CYAN, 0.1) + ''' !important;
+            color: ''' + CYAN + ''' !important;
+        }
+        .dash-options-list-option.selected,
+        .dash-dropdown-option.selected {
+            background: ''' + _rgba(CYAN, 0.08) + ''' !important;
+        }
+        .dash-options-list-option label,
+        .dash-dropdown-option label {
+            color: inherit !important;
+        }
+
+        /* Checkbox inside options */
+        .dash-options-list-option input[type="checkbox"],
+        .dash-dropdown-option input[type="checkbox"] {
+            accent-color: ''' + CYAN + ''';
+        }
+
+        /* DataTable cell focus/select/active - override white defaults */
+        .dash-spreadsheet-container .dash-spreadsheet-inner td.focused,
+        .dash-spreadsheet-container .dash-spreadsheet-inner td.cell--selected,
+        .dash-spreadsheet-container .dash-spreadsheet-inner td.cell--active,
+        .dash-cell-value,
+        td.dash-cell.focused,
+        td.focused,
+        td.cell--selected {
+            background-color: ''' + _rgba(CYAN, 0.1) + ''' !important;
+            color: ''' + TEXT + ''' !important;
+            border: 1px solid ''' + _rgba(CYAN, 0.4) + ''' !important;
+        }
+        .dash-spreadsheet-container .dash-spreadsheet-inner input:not([type="checkbox"]) {
+            background-color: ''' + SURFACE + ''' !important;
+            color: ''' + TEXT + ''' !important;
+        }
+        .dash-spreadsheet-menu {
+            background: ''' + CARD + ''' !important;
+            border-color: ''' + BORDER + ''' !important;
+        }
 
         /* DataTable pagination dark theme */
         .previous-next-container { background: transparent !important; }

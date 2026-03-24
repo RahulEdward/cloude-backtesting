@@ -1,193 +1,354 @@
-# Backtest Trading Engine
+<div align="center">
 
-A modular, automated backtesting engine that fetches live market data from Binance, runs parameterized strategy sweeps through vectorbt, and filters results using walk-forward validation (in-sample/out-of-sample) with a max-drawdown pass/fail gate.
+# Autonomous Backtesting Engine
 
-## What It Does
+**Walk-forward validated strategy discovery with automated parameter sweeps**
 
-1. **Fetches** historical OHLCV candlestick data from Binance (cached to CSV)
-2. **Splits** data 60/40 into training (in-sample) and testing (out-of-sample) sets
-3. **Generates** hundreds of strategy variants via parameter sweeps across indicators
-4. **Backtests** all variants in parallel using vectorbt + ThreadPoolExecutor
-5. **Filters** strategies by max drawdown threshold on in-sample data
-6. **Validates** survivors on unseen out-of-sample data (same filter)
-7. **Visualizes** final survivors in a professional dark-theme dashboard
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://python.org)
+[![vectorbt](https://img.shields.io/badge/Engine-vectorbt-00C853)](https://vectorbt.dev)
+[![Dash](https://img.shields.io/badge/Dashboard-Plotly%20Dash-119DFF?logo=plotly)](https://dash.plotly.com)
+[![Binance](https://img.shields.io/badge/Data-Binance%20API-F0B90B?logo=binance)](https://binance.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Dashboard Preview
+<br>
 
-The dashboard shows:
-- **Stats bar** - combos tested, IS survivors, final survivors, best return, lowest drawdown
-- **Strategy selector** - multi-select dropdown to compare strategies
-- **Equity curves** - side-by-side OOS and IS charts with drawdown overlay
-- **Results table** - sortable, color-coded with all metrics (return, drawdown, Sharpe, Sortino, win rate, trades)
+*Fetches market data, sweeps parameter grids across technical indicators, backtests hundreds of strategy combinations in parallel, filters by max drawdown on both in-sample and out-of-sample data, and visualizes survivors in a real-time dashboard.*
+
+<br>
+
+</div>
+
+---
+
+## Overview
+
+Most backtesting results are lies. A strategy that looks great on historical data often fails on new data because it was **overfit** to the past.
+
+This engine solves that problem using **walk-forward validation**:
+
+1. Train on 60% of data (in-sample) → find strategies that work
+2. Test survivors on 40% unseen data (out-of-sample) → filter out lucky ones
+3. Only strategies that pass **both** phases survive
+
+The result: strategies with a statistically meaningful edge, not just curve-fitted flukes.
+
+---
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Parameter Sweep** | Automatically tests hundreds of parameter combinations across multiple indicator types |
+| **Walk-Forward Validation** | 60/40 in-sample/out-of-sample split prevents overfitting |
+| **Parallel Execution** | ThreadPoolExecutor runs backtests across all CPU cores simultaneously |
+| **Plugin Architecture** | Drop a `.py` file in `indicators/` or `rules/` — auto-discovered, zero config |
+| **CSV Caching** | Data fetched once from Binance, then loaded instantly from disk |
+| **Dark-Theme Dashboard** | Professional Plotly Dash UI with equity curves, drawdown charts, and sortable tables |
+| **Combo Stacking** | Automatically combines rules (AND logic for entries, OR for exits) |
+
+---
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# 1. Clone the repo
+git clone https://github.com/RahulEdward/cloude-backtesting.git
+cd cloude-backtesting
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# Run the engine
+# 3. Run the engine
 python main.py
 ```
 
-The dashboard auto-opens at `http://127.0.0.1:8050`
+The dashboard auto-opens at **http://127.0.0.1:8050**
 
-## Architecture
+> **Note:** No Binance API key required. Uses the free public kline endpoint.
+
+---
+
+## How It Works
 
 ```
-├── config.py              # Configuration & parameter grids
-├── data_fetcher.py        # Binance API + CSV caching
-├── indicators/            # Modular indicators (auto-discovered)
-│   ├── rsi.py             # RSI (periods: 10, 14, 21)
-│   ├── sma_cross.py       # SMA crossover (4 period pairs)
-│   ├── ema.py             # EMA crossover (5 period pairs)
-│   ├── macd.py            # MACD (standard 12/26/9)
-│   └── bollinger.py       # Bollinger Bands (3 variants)
-├── rules/                 # Modular trading rules (auto-discovered)
-│   ├── rsi_oversold.py    # RSI oversold/overbought (9 variants)
-│   ├── sma_cross_rule.py  # SMA golden/death cross (4 variants)
-│   ├── ema_cross_rule.py  # EMA crossover (5 variants)
-│   ├── macd_cross_rule.py # MACD signal crossover (1 variant)
-│   └── bollinger_rule.py  # Bollinger band touch (3 variants)
-├── engine.py              # vectorbt backtest engine
-├── pipeline.py            # Full pipeline (parallel execution)
-├── dashboard.py           # Plotly Dash dashboard
-└── main.py                # Entry point
+                          ┌─────────────────────┐
+                          │   Binance REST API   │
+                          │  (public, no key)    │
+                          └──────────┬──────────┘
+                                     │
+                                     ▼
+                          ┌─────────────────────┐
+                          │   CSV Cache Layer    │
+                          │  (instant on re-run) │
+                          └──────────┬──────────┘
+                                     │
+                          ┌──────────┴──────────┐
+                          │                     │
+                          ▼                     ▼
+                   ┌─────────────┐       ┌─────────────┐
+                   │  In-Sample  │       │Out-of-Sample│
+                   │    (60%)    │       │    (40%)    │
+                   └──────┬──────┘       └──────┬──────┘
+                          │                     │
+                          ▼                     │
+              ┌───────────────────────┐         │
+              │  Parameter Sweep      │         │
+              │  ─────────────────    │         │
+              │  22 rule variants     │         │
+              │  × combo pairs        │         │
+              │  = 253 strategies     │         │
+              └───────────┬───────────┘         │
+                          │                     │
+                          ▼                     │
+              ┌───────────────────────┐         │
+              │  Parallel Backtest    │         │
+              │  (8 threads)          │         │
+              └───────────┬───────────┘         │
+                          │                     │
+                          ▼                     │
+              ┌───────────────────────┐         │
+              │  Max DD < 30%?        │         │
+              │  FAIL → eliminated    │         │
+              │  PASS → survivors     │         │
+              └───────────┬───────────┘         │
+                          │                     │
+                          └─────────┬───────────┘
+                                    │
+                                    ▼
+                        ┌───────────────────────┐
+                        │  Re-test on OOS data  │
+                        │  Same DD filter       │
+                        └───────────┬───────────┘
+                                    │
+                          ┌─────────┴─────────┐
+                          │                   │
+                          ▼                   ▼
+                    ┌──────────┐        ┌──────────┐
+                    │   PASS   │        │   FAIL   │
+                    │Dashboard │        │Eliminated│
+                    └──────────┘        └──────────┘
 ```
+
+---
 
 ## Parameter Sweep
 
-The engine tests **22 individual strategy variants** from 5 indicator types, then generates **all 2-rule combinations** (253 total combos by default). Parameter grids are configured in `config.py`:
+The engine generates **22 individual strategy variants** from 5 indicator types, then builds **all pairwise combinations** for 253 total strategies:
 
-| Indicator | Parameters | Variants |
-|-----------|-----------|----------|
-| RSI | periods [10, 14, 21] x thresholds [(20,80), (25,75), (30,70)] | 9 |
-| SMA Cross | period pairs [(10,30), (20,50), (20,100), (50,200)] | 4 |
-| EMA Cross | period pairs [(5,13), (9,21), (9,50), (12,26), (20,50)] | 5 |
-| MACD | standard (12, 26, 9) | 1 |
-| Bollinger | (window, std) [(20,2.0), (20,1.5), (30,2.0)] | 3 |
+| Indicator | Parameters Swept | Variants |
+|-----------|-----------------|----------|
+| **RSI** | Periods `[10, 14, 21]` × Thresholds `[(20,80), (25,75), (30,70)]` | 9 |
+| **SMA Cross** | Period pairs `[(10,30), (20,50), (20,100), (50,200)]` | 4 |
+| **EMA Cross** | Period pairs `[(5,13), (9,21), (9,50), (12,26), (20,50)]` | 5 |
+| **MACD** | Standard `(12, 26, 9)` | 1 |
+| **Bollinger Bands** | `(window, std)` = `[(20,2.0), (20,1.5), (30,2.0)]` | 3 |
 
-## Adding Custom Indicators & Rules
+**Total:** 22 singles + 231 pairs = **253 combos tested**
 
-### New Indicator
+---
 
-Create `indicators/my_indicator.py`:
+## Project Structure
+
+```
+cloude-backtesting/
+│
+├── config.py                 # All settings & parameter grids
+├── data_fetcher.py           # Binance API client + CSV caching + train/test split
+│
+├── indicators/               # Technical indicator plugins (auto-discovered)
+│   ├── __init__.py           # Registry with get_variants() support
+│   ├── base.py               # BaseIndicator abstract class
+│   ├── rsi.py                # Relative Strength Index
+│   ├── sma_cross.py          # Simple Moving Average crossover
+│   ├── ema.py                # Exponential Moving Average crossover
+│   ├── macd.py               # MACD line + signal
+│   └── bollinger.py          # Bollinger Bands (upper/mid/lower)
+│
+├── rules/                    # Trading signal plugins (auto-discovered)
+│   ├── __init__.py           # Registry with get_variants() support
+│   ├── base.py               # BaseRule abstract class
+│   ├── rsi_oversold.py       # Buy oversold, sell overbought
+│   ├── sma_cross_rule.py     # Golden cross / death cross
+│   ├── ema_cross_rule.py     # EMA crossover signals
+│   ├── macd_cross_rule.py    # MACD signal line crossover
+│   └── bollinger_rule.py     # Buy at lower band, sell at upper
+│
+├── engine.py                 # vectorbt portfolio simulation
+├── pipeline.py               # Orchestration: sweep → backtest → filter → validate
+├── dashboard.py              # Plotly Dash dark-theme dashboard
+├── main.py                   # Entry point
+│
+├── data_cache/               # CSV cache (auto-created, gitignored)
+├── logs/                     # Debug logs (auto-created, gitignored)
+└── requirements.txt          # Python dependencies
+```
+
+---
+
+## Configuration
+
+All settings in one file — `config.py`:
+
+```python
+# ── Data ──
+SYMBOL = "BTCUSDT"              # Any Binance trading pair
+TIMEFRAME = "1h"                # 1m, 5m, 15m, 1h, 4h, 1d
+LOOKBACK_DAYS = 365             # Historical data period
+
+# ── Validation ──
+TRAIN_RATIO = 0.6               # 60% in-sample / 40% out-of-sample
+MAX_DRAWDOWN_THRESHOLD = 0.30   # Max 30% drawdown = fail
+
+# ── Execution ──
+INITIAL_CAPITAL = 10000         # Starting portfolio ($)
+FEES = 0.001                    # 0.1% per trade
+COMBO_MAX_SIZE = 2              # Max rules per combo (1=singles, 2=pairs, 3=triples)
+PARALLEL_WORKERS = 8            # Concurrent backtest threads
+
+# ── Parameter Grids ──
+RSI_PERIODS = [10, 14, 21]
+RSI_THRESHOLDS = [(20, 80), (25, 75), (30, 70)]
+SMA_PERIODS = [(10, 30), (20, 50), (20, 100), (50, 200)]
+EMA_PERIODS = [(5, 13), (9, 21), (9, 50), (12, 26), (20, 50)]
+MACD_PARAMS = [(12, 26, 9)]
+BOLLINGER_PARAMS = [(20, 2.0), (20, 1.5), (30, 2.0)]
+```
+
+---
+
+## Extending the Engine
+
+The plugin system makes it trivial to add new indicators and rules. Just drop a file — no imports, no registration, no config changes needed.
+
+### Adding a New Indicator
+
+Create `indicators/dema.py`:
 
 ```python
 from indicators import register
 from indicators.base import BaseIndicator
+import config
 
 @register
-class MyIndicator(BaseIndicator):
-    def __init__(self, period=14):
+class DEMAIndicator(BaseIndicator):
+    def __init__(self, period=21):
         self.period = period
 
     @property
     def name(self):
-        return f"my_ind_{self.period}"
+        return f"dema_{self.period}"
 
     def compute(self, df):
-        df[f"my_col_{self.period}"] = df["close"].rolling(self.period).mean()
+        ema1 = df["close"].ewm(span=self.period, adjust=False).mean()
+        ema2 = ema1.ewm(span=self.period, adjust=False).mean()
+        df[f"dema_{self.period}"] = 2 * ema1 - ema2
         return df
 
     @classmethod
     def get_variants(cls):
-        return [cls(period=p) for p in [10, 14, 21]]
+        return [cls(period=p) for p in [14, 21, 50]]
 ```
 
-### New Rule
+### Adding a New Rule
 
-Create `rules/my_rule.py`:
+Create `rules/dema_rule.py`:
 
 ```python
 from rules import register
 from rules.base import BaseRule
 
 @register
-class MyRule(BaseRule):
-    def __init__(self, period=14, threshold=50):
+class DEMACrossRule(BaseRule):
+    def __init__(self, period=21):
         self.period = period
-        self.threshold = threshold
 
     @property
     def name(self):
-        return f"My Rule({self.period}, {self.threshold})"
+        return f"DEMA Cross({self.period})"
 
     @property
     def required_indicators(self):
-        return [f"my_ind_{self.period}"]
+        return [f"dema_{self.period}"]
 
     def generate_signals(self, df):
-        col = f"my_col_{self.period}"
-        entries = (df["close"] > df[col]).fillna(False)
-        exits = (df["close"] < df[col]).fillna(False)
+        col = f"dema_{self.period}"
+        above = (df["close"] > df[col])
+        prev = above.shift(1).fillna(False)
+        entries = (above & ~prev).fillna(False)
+        exits = (~above & prev).fillna(False)
         return entries, exits
 
     @classmethod
     def get_variants(cls):
-        return [cls(period=p, threshold=t) for p in [10, 14] for t in [40, 50]]
+        return [cls(period=p) for p in [14, 21, 50]]
 ```
 
-Drop the file in, run `python main.py` - the engine auto-discovers it.
+**That's it.** Run `python main.py` — the new strategies are automatically included in the sweep.
 
-## Configuration
+---
 
-Edit `config.py` to change:
+## Dashboard
 
-```python
-SYMBOL = "BTCUSDT"           # Any Binance trading pair
-TIMEFRAME = "1h"             # 1m, 5m, 15m, 1h, 4h, 1d
-LOOKBACK_DAYS = 365          # Historical data period
-TRAIN_RATIO = 0.6            # 60% in-sample, 40% out-of-sample
-MAX_DRAWDOWN_THRESHOLD = 0.30  # 30% max drawdown = fail
-COMBO_MAX_SIZE = 2           # Max rules per combo (1=singles, 2=pairs)
-INITIAL_CAPITAL = 10000      # Starting portfolio value
-PARALLEL_WORKERS = 8         # Concurrent backtest threads
-```
+The dashboard provides real-time visualization of surviving strategies:
 
-## Pipeline Flow
+- **Stats Bar** — Combos tested, IS survivors, final survivors, best OOS return, lowest drawdown
+- **Strategy Selector** — Multi-select dropdown to compare any combination of strategies
+- **Equity Curves** — Side-by-side Out-of-Sample and In-Sample charts with drawdown overlay
+- **Results Table** — Sortable by any column, color-coded rankings (gold/silver/bronze), paginated
+- **Metrics** — Return, Max Drawdown, Sharpe Ratio, Sortino Ratio, Win Rate, Trade Count
 
-```
-Binance API → CSV Cache → 60/40 Split
-                              │
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-        In-Sample (60%)                Out-of-Sample (40%)
-              │                               │
-    ┌─────────┴─────────┐                     │
-    ▼                   ▼                     │
-  Compute           Generate                  │
-  Indicators        Signals                   │
-    │                   │                     │
-    └────────┬──────────┘                     │
-             ▼                                │
-      vectorbt Backtest                       │
-      (parallel, 8 workers)                   │
-             │                                │
-             ▼                                │
-      Max DD < 30%? ──FAIL──→ eliminated      │
-             │                                │
-           PASS (survivors)                   │
-             │                                │
-             └────────────────────────────────┘
-                              │
-                    Same pipeline on OOS data
-                              │
-                        Max DD < 30%?
-                         │         │
-                       PASS      FAIL
-                         │         │
-                    Dashboard   Eliminated
-```
+---
+
+## Logging
+
+Comprehensive logging at two levels:
+
+| Output | Level | What's Logged |
+|--------|-------|--------------|
+| Console | `INFO+` | Pipeline steps, pass/fail decisions, survivor counts |
+| `logs/engine.log` | `DEBUG+` | Data shapes, indicator values, signal counts, full tracebacks |
+
+---
 
 ## Tech Stack
 
-- **vectorbt** - High-performance backtesting engine
-- **pandas / numpy** - Data manipulation
-- **ta** - Technical analysis indicator library
-- **Plotly Dash** - Interactive dashboard
-- **Binance REST API** - Free market data (no API key needed)
+| Component | Technology |
+|-----------|-----------|
+| Backtesting Engine | [vectorbt](https://vectorbt.dev) |
+| Technical Indicators | [ta](https://github.com/bukosabino/ta) |
+| Data Source | [Binance REST API](https://binance-docs.github.io/apidocs/) (public, no key) |
+| Dashboard | [Plotly Dash](https://dash.plotly.com) |
+| Data Processing | pandas, numpy |
+| Parallelism | concurrent.futures.ThreadPoolExecutor |
+
+---
+
+## Requirements
+
+- Python 3.10+
+- Internet connection (first run only — data is cached)
+- ~500MB RAM for 253 strategy backtests
+
+```
+pandas>=1.5.0
+numpy>=1.23.0
+vectorbt>=0.26.0
+ta>=0.10.0
+plotly>=5.0.0
+dash>=2.0.0
+requests>=2.28.0
+```
+
+---
 
 ## License
 
 MIT
+
+---
+
+<div align="center">
+
+**Built with [vectorbt](https://vectorbt.dev) + [Plotly Dash](https://dash.plotly.com)**
+
+</div>
